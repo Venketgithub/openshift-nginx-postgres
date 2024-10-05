@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment-rbd
+  namespace: team1-tenant1 # Change to your desired namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-rbd
+  template:
+    metadata:
+      labels:
+        app: nginx-rbd
+    spec:
+      containers:
+      - name: nginx-rbd
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        volumeDevices:
+        - name: nginx-storage
+          devicePath: /usr/share/nginx/html  # The path where Nginx serves content
+      volumes:
+      - name: nginx-storage
+        persistentVolumeClaim:
+          claimName: my-gp3-pvc-rbd  # Change to your PVC name
+
+

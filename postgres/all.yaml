@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysecret
+  namespace: team1-tenant1
+type: Opaque
+data:
+  POSTGRES_DB: bXRhX2RhdGE=   #mta_data
+  POSTGRES_USER: cG9zdGdyZXM=   #postgres 
+  POSTGRES_PASSWORD: YWRtaW4xMjM=     #admin123
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: my-postgres-pvc
+  namespace: team1-tenant1
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: gp3-csi
+  volumeMode: Block
+---
+apiVersion: apps/v1
+kind: Deployment # Create a deployment
+metadata:
+  name: postgres # Set the name of the deployment
+  namespace: team1-tenant1
+  #namespace: spark-and-postgres
+spec:
+  replicas: 1 # Set deployment replicas
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:14-alpine  # Docker image
+          imagePullPolicy: "IfNotPresent"
+          ports:
+            - containerPort: 5432  # Exposing the container port 5432 for PostgreSQL client connections.
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mysecret
+                  key: POSTGRES_USER
+                  optional: false # same as default; "mysecret" must exist
+                                  # and include a key named "username"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysecret
+                  key: POSTGRES_PASSWORD
+                  optional: false # same as default; "mysecret" must exist
+                                  # and include a key named "password"
+          volumeDevices:
+            - devicePath: /var/lib/postgresql/data
+              name: postgredb
+      volumes:
+        - name: postgredb
+          persistentVolumeClaim:
+            claimName: my-postgres-pvc
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: postgres-service
+  namespace: team1-tenant1
+spec:
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+  selector:
+    app: postgres
+---
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: postgres-route
+  namespace: team1-tenant1
+spec:
+  host: postgres-team1.apps.natwest.priartw.com
+  to:
+    kind: Service
+    name: postgres-service
+    weight: 100
+  port:
+    targetPort: 5432
